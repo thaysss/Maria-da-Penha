@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 class PanicRepository {
   // Use o IP da sua máquina se estiver rodando local (ex: 192.168.x.x)
   // Emulador Android usa 10.0.2.2 para acessar o localhost do PC
-  final String baseUrl = 'http://127.0.0.1:8000'; 
+  final String baseUrl = 'http://192.168.18.8'; 
 
   Future<bool> sendPanicAlert({
     required int userId,

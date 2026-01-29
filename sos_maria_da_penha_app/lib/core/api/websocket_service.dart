@@ -5,7 +5,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class WebSocketService {
   WebSocketChannel? _channel;
   // Use 10.0.2.2 para emulador Android ou seu IP local (ex: 192.168.1.X) para celular físico
-  final String _url = 'ws://127.0.0.1:8000/ws/monitor'; 
+  final String _url = 'ws://192.168.18.8/ws/monitor'; 
   
   final _controller = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get messages => _controller.stream;
