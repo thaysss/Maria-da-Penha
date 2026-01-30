@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-// Importando as telas que criamos antes
+// Importando as telas
 import 'features/panic_button/presentation/screens/panic_screen.dart';
 import 'features/agent_patrol/presentation/screens/agent_screen.dart';
+import 'features/history/presentation/history_screen.dart';
+import 'features/auth/presentation/login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -19,7 +21,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const MenuScreen(),
+      home: const LoginScreen(),
     );
   }
 }
@@ -74,6 +76,23 @@ class MenuScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(builder: (context) => const AgentScreen()),
                 );
+              },
+            ),
+
+            const SizedBox(height: 20),
+
+            // --- BOTÃO DE HISTÓRICO (AGORA NO LUGAR CERTO) ---
+            ElevatedButton.icon(
+              icon: const Icon(Icons.history, size: 40, color: Colors.grey),
+              label: const Text("MEUS CHAMADOS\n(Histórico)", textAlign: TextAlign.center),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
+                backgroundColor: Colors.grey.shade200,
+              ),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const HistoryScreen()
+                ));
               },
             ),
           ],

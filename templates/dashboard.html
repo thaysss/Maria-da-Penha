@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Central de Monitoramento - SOS Guarda</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body { background-color: #1a1a2e; color: white; }
+        #map { height: 600px; border-radius: 15px; border: 2px solid #444; }
+        .log-box { height: 600px; overflow-y: auto; background: #16213e; border-radius: 15px; padding: 10px; }
+        .log-item { border-bottom: 1px solid #444; padding: 10px; font-size: 0.9em; }
+        
+        /* Estilos para os ícones personalizados (Emojis) */
+        .leaflet-div-icon {
+            background: transparent;
+            border: none;
+        }
+        .emoji-icon {
+            font-size: 24px;
+            text-shadow: 2px 2px 4px #000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid p-4">
+    <div class="row mb-4">
+        <div class="col text-center">
+            <h1>👮 CENTRAL DE OPERAÇÕES</h1>
+            <p class="text-muted">Propriá/SE - Monitoramento Preventivo & Ostensivo</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div id="map"></div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="log-box" id="logBox">
+                <h4 class="text-center mb-3">📡 Feed de Eventos</h4>
+                <div id="eventsList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. Inicia o Mapa (Centralizado em Propriá/SE)
+    const map = L.map('map').setView([-10.2128, -36.8417], 15); 
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // --- ARMAZENAMENTO DE MARCADORES ---
+    const activeIncidents = {}; // Marcadores Vermelhos (Pânico Ativo)
+    const agentMarkers = {};    // Viaturas (Monitoramento)
+    const victimMarkers = {};   // Vítimas (Monitoramento Preventivo)
+
+    // 2. Conecta no WebSocket
+    const ws = new WebSocket("ws://127.0.0.1:8000/ws/monitor");
+
+    ws.onopen = () => addLog("🟢 Monitoramento Total Iniciado", "text-success");
+    
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        handleEvent(data);
+    };
+
+    function handleEvent(data) {
+        
+        // ----------------------------------------------------
+        // 1. MONITORAMENTO DE AGENTE (VIATURA) - 🚔
+        // ----------------------------------------------------
+        if (data.type === 'AGENT_MOVED') {
+            if (agentMarkers[data.agent_id]) {
+                // Se já existe, apenas move
+                agentMarkers[data.agent_id].setLatLng([data.location.lat, data.location.lng]);
+            } else {
+                // Se não existe, cria novo ícone
+                const icon = L.divIcon({
+                    html: '<div class="emoji-icon">🚔</div>', 
+                    className: 'leaflet-div-icon', 
+                    iconSize: [30, 30]
+                });
+                agentMarkers[data.agent_id] = L.marker([data.location.lat, data.location.lng], {icon: icon})
+                    .addTo(map)
+                    .bindTooltip(`Agente: ${data.name}`); // Mostra nome ao passar o mouse
+            }
+        }
+
+        // ----------------------------------------------------
+        // 2. MONITORAMENTO DE VÍTIMA (PREVENTIVO) - 👤
+        // ----------------------------------------------------
+        else if (data.type === 'VICTIM_MOVED') {
+            // Se essa vítima tiver um alerta de pânico ativo, não atualizamos o ícone "calmo" (👤)
+            // Deixamos apenas o ícone de alerta vermelho no mapa para não duplicar.
+            // (Verificação opcional, aqui vamos deixar atualizar para garantir rastreio)
+
+            if (victimMarkers[data.victim_id]) {
+                victimMarkers[data.victim_id].setLatLng([data.location.lat, data.location.lng]);
+            } else {
+                const icon = L.divIcon({
+                    html: '<div class="emoji-icon">👤</div>', 
+                    className: 'leaflet-div-icon', 
+                    iconSize: [30, 30]
+                });
+                victimMarkers[data.victim_id] = L.marker([data.location.lat, data.location.lng], {icon: icon})
+                    .addTo(map)
+                    .bindTooltip(`Monitorado: ${data.name}`);
+            }
+        }
+
+        // ----------------------------------------------------
+        // 3. ALERTA DE PÂNICO (Muda visual para MARCADOR PADRÃO VERMELHO)
+        // ----------------------------------------------------
+        else if (data.type === 'NEW_PANIC_ALERT') {
+            addLog(`🚨 ALERTA REAL: ${data.victim_name} pede socorro!`, "text-danger fw-bold");
+            
+            // Opcional: Remove o ícone de monitoramento comum (👤) para dar lugar ao ALERTA
+            if (victimMarkers[data.victim_id]) {
+                map.removeLayer(victimMarkers[data.victim_id]);
+                delete victimMarkers[data.victim_id]; 
+            }
+            
+            // Se já tiver marcador de incidente antigo para esse ID, remove
+            if (activeIncidents[data.incident_id]) map.removeLayer(activeIncidents[data.incident_id]);
+
+            const marker = L.marker([data.location.lat, data.location.lng]).addTo(map)
+                .bindPopup(`
+                    <div class="text-center">
+                        <b class="text-danger">🆘 SOCORRO #${data.incident_id}</b><br>
+                        Vítima: ${data.victim_name}<br>
+                        Horário: ${data.time}<br>
+                        <hr>
+                        <button onclick="dispatchNearest(${data.incident_id}, ${data.location.lat}, ${data.location.lng}, '${data.victim_name}')" 
+                                class="btn btn-sm btn-primary w-100 mt-2">
+                            🚓 CHAMAR VIATURA + PRÓXIMA
+                        </button>
+                    </div>
+                `)
+                .openPopup();
+            
+            activeIncidents[data.incident_id] = marker;
+            
+            // Centraliza e dá zoom
+            map.setView([data.location.lat, data.location.lng], 16);
+            
+            // Som de Alerta
+            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg');
+            audio.play().catch(e => console.log("Clique na tela para permitir som"));
+
+        } 
+        
+        // ----------------------------------------------------
+        // OUTROS EVENTOS
+        // ----------------------------------------------------
+        else if (data.type === 'DISPATCH_CONFIRMED') {
+            addLog(`✅ Viatura <b>${data.agent_name}</b> acionada! (Distância: ${data.distance}km)`, "text-success fw-bold");
+        
+        } else if (data.type === 'NO_AGENTS_AVAILABLE') {
+            alert("⚠️ Nenhuma viatura online no momento!");
+
+        } else if (data.type === 'CASE_CLOSED') {
+            addLog(`✅ Ocorrência #${data.incident_id} Finalizada.`, "text-success");
+            
+            // Remove o marcador de pânico vermelho
+            if (activeIncidents[data.incident_id]) {
+                map.removeLayer(activeIncidents[data.incident_id]);
+                delete activeIncidents[data.incident_id];
+            }
+            // Nota: Na próxima atualização de GPS (10s), o ícone 👤 voltará a aparecer normalmente.
+        }
+    }
+
+    // Função global para o botão chamar a viatura mais próxima
+    window.dispatchNearest = function(id, lat, lng, vName) {
+        ws.send(JSON.stringify({
+            type: "DISPATCH_NEAREST",
+            incident_id: id,
+            victim_name: vName,
+            location: { lat: lat, lng: lng }
+        }));
+        addLog("🔄 Calculando viatura mais próxima...", "text-warning");
+    };
+
+    function addLog(message, cssClass = "") {
+        const box = document.getElementById("eventsList");
+        const time = new Date().toLocaleTimeString();
+        box.insertAdjacentHTML('afterbegin', `<div class="log-item ${cssClass}"><span class="text-muted">[${time}]</span> ${message}</div>`);
+    }
+</script>
+
+</body>
+</html>

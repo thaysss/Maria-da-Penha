@@ -10,10 +10,13 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
   geolocator: ^10.1.0
   permission_handler: ^11.0.0
   vibration: ^1.8.3
   web_socket_channel: ^2.4.0
+  image_picker: ^1.0.4
+  url_launcher: ^6.2.4
 
 dev_dependencies:
   flutter_test:

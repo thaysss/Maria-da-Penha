@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class PanicRepository {
-  // Use o IP da sua máquina se estiver rodando local (ex: 192.168.x.x)
-  // Emulador Android usa 10.0.2.2 para acessar o localhost do PC
-  final String baseUrl = 'http://192.168.18.8'; 
+// ... imports
 
-  Future<bool> sendPanicAlert({
+class PanicRepository {
+  // Ajuste para o seu IP ou localhost
+  final String baseUrl = 'http://127.0.0.1:8000'; 
+
+  // Mudamos o retorno de bool para int? (pode ser nulo se falhar)
+  Future<int?> sendPanicAlert({
     required int userId,
     required double lat,
     required double lng,
@@ -25,15 +27,14 @@ class PanicRepository {
       );
 
       if (response.statusCode == 201) {
-        print("Pânico enviado com sucesso: ${response.body}");
-        return true;
+        final data = jsonDecode(response.body);
+        return data['incident_id']; // Retorna o ID gerado (Ex: 1, 2, 3...)
       } else {
-        print("Erro na API: ${response.statusCode}");
-        return false;
+        return null;
       }
     } catch (e) {
-      print("Erro de conexão: $e");
-      return false;
+      print("Erro: $e");
+      return null;
     }
   }
 }
